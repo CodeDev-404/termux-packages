@@ -75,3 +75,7 @@ yes | $SDK_MANAGER --sdk_root="$ANDROID_HOME" \
 		"platforms;android-35" \
 		"platforms;android-28" \
 		"platforms;android-24"
+# Extra components needed by termux-am (gradle assembleRelease):
+yes | $SDK_MANAGER --sdk_root="$ANDROID_HOME" \
+		"platforms;android-33" \
+		"build-tools;30.0.3"
