@@ -1,4 +1,4 @@
-name: Generate bootstrap archives (android-7)
+name: Generate DroidShell bootstrap archives (android-7)
 
 on:
   schedule:
@@ -14,8 +14,8 @@ concurrency:
 jobs:
   build:
     permissions:
-      contents: read # actions/upload-artifact doesn't need contents: write
-    runs-on: ubuntu-slim
+      contents: read
+    runs-on: ubuntu-26.04
     strategy:
       matrix:
         arch:
@@ -23,22 +23,30 @@ jobs:
           - arm
           - i686
           - x86_64
-    if: github.repository == 'termux/termux-packages'
     steps:
       - name: Git clone
         uses: actions/checkout@v7
-      - name: Create bootstrap archive
-        run: ./scripts/generate-bootstraps.sh --architectures ${{ matrix.arch }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build package builder image
+        run: docker build -t package-builder -f scripts/Dockerfile .
+
+      - name: Create bootstrap archive (builds packages from source with the DroidShell prefix)
+        run: TERMUX_BUILDER_IMAGE_NAME=package-builder ./scripts/run-docker.sh ./scripts/build-bootstraps.sh --architectures ${{ matrix.arch }}
+
       - name: Store artifacts
         uses: actions/upload-artifact@v6
         with:
           name: bootstrap-archives-${{ matrix.arch }}-${{ github.sha }}
           path: "*.zip"
+
   publish:
     permissions:
-      contents: write # for git push
+      contents: write # for git tag + release
     needs: build
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest
     steps:
       - name: Git clone
         uses: actions/checkout@v7
@@ -65,7 +73,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create ${{ steps.get_tag.outputs.tag_name }} --title "Bootstrap archives for Termux application (apt.android-7)"
+          gh release create ${{ steps.get_tag.outputs.tag_name }} --title "Bootstrap archives for DroidShell application (apt.android-7)"
           for file in *.zip; do
             gh release upload ${{ steps.get_tag.outputs.tag_name }} "$file"
           done
