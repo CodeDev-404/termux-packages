@@ -31,7 +31,8 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build package builder image
-        run: docker build -t package-builder -f scripts/Dockerfile .
+        working-directory: scripts
+        run: docker build -t package-builder -f Dockerfile .
 
       - name: Create bootstrap archive (builds packages from source with the DroidShell prefix)
         run: TERMUX_BUILDER_IMAGE_NAME=package-builder ./scripts/run-docker.sh ./scripts/build-bootstraps.sh --architectures ${{ matrix.arch }}
