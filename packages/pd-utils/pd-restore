@@ -1,0 +1,41 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# pd-restore - restore a pd-backup archive into the Termux home directory.
+#
+# Usage: pd-restore ARCHIVE
+#
+# The archive is extracted over the current home directory. Nothing is
+# deleted; existing files are overwritten. Run from a safe location and
+# review the archive contents first with: tar -tzf ARCHIVE | head -50
+
+set -euo pipefail
+
+if [ "$#" -ne 1 ]; then
+	echo "Usage: pd-restore ARCHIVE" >&2
+	exit 1
+fi
+
+ARCHIVE="$1"
+HOME_DIR="${HOME:-/data/data/com.termux/files/home}"
+
+if [ ! -f "$ARCHIVE" ]; then
+	echo "Error: archive not found: $ARCHIVE" >&2
+	exit 1
+fi
+
+case "$ARCHIVE" in
+	*.tar.zst|*.tzst) COMPRESS="--zstd" ;;
+	*.tar.gz|*.tgz)   COMPRESS="--gzip" ;;
+	*.tar)            COMPRESS="" ;;
+	*) echo "Error: unsupported archive type: $ARCHIVE" >&2; exit 1 ;;
+esac
+
+echo "==> Restoring $ARCHIVE into $HOME_DIR ..."
+echo "    (existing files will be overwritten, nothing deleted)"
+read -r -p "Continue? [y/N] " answer
+case "$answer" in
+	y|Y) ;;
+	*) echo "Aborted."; exit 1 ;;
+esac
+
+tar $COMPRESS -xf "$ARCHIVE" -C "$HOME_DIR"
+echo "==> Restore finished."

@@ -1,0 +1,42 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# pd-health - quick device health summary for Termux.
+#
+# Shows storage, memory, top processes and outdated packages.
+
+set -uo pipefail
+
+PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
+HOME_DIR="${HOME:-/data/data/com.termux/files/home}"
+
+echo "=== pd-health ==="
+echo
+
+echo "-- Storage --"
+df -h "$HOME_DIR" 2>/dev/null | awk 'NR==1 || NR==2 {print}'
+echo
+
+echo "-- Memory --"
+if [ -r /proc/meminfo ]; then
+	awk '/MemTotal|MemAvailable/ {printf "%s: %.1f GB\n", $1, $2/1024/1024}' /proc/meminfo
+else
+	echo "not available"
+fi
+echo
+
+echo "-- Top 5 processes by memory --"
+ps -eo pmem,comm --sort=-pmem 2>/dev/null | head -6 || ps aux 2>/dev/null | sort -k4 -rn | head -6
+echo
+
+echo "-- Disk usage of home (top 10) --"
+du -sh "$HOME_DIR"/* "$HOME_DIR"/.[!.]* 2>/dev/null | sort -rh | head -10 || true
+echo
+
+echo "-- Outdated packages --"
+if command -v apt >/dev/null 2>&1; then
+	apt list --upgradable 2>/dev/null | tail -n +2 | wc -l | xargs -I{} echo "{} package(s) can be upgraded (run: pkg upgrade)"
+else
+	echo "apt not found"
+fi
+echo
+
+echo "Done."

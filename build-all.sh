@@ -60,7 +60,7 @@ esac
 BUILDSCRIPT=$(dirname "$0")/build-package.sh
 BUILDALL_DIR=$TERMUX_TOPDIR/_buildall-$TERMUX_ARCH
 BUILDORDER_FILE=$BUILDALL_DIR/buildorder.txt
-BUILDSTATUS_FILE=$BUILDALL_DIR/buildstatus.txt
+BUILDSTATUS_FILE=$BUILDALL_DIR/buildstatus.json
 
 if [ -e "$BUILDORDER_FILE" ]; then
 	echo "Using existing buildorder file: $BUILDORDER_FILE"
@@ -72,12 +72,64 @@ if [ -e "$BUILDSTATUS_FILE" ]; then
 	echo "Continuing build-all from: $BUILDSTATUS_FILE"
 fi
 
+# Register the result of a package build in the JSON status file.
+# The file is rewritten atomically so an interrupted build never leaves
+# it corrupted.
+_register_build_status() {
+	local pkg="$1" status="$2" start="$3" end="$4"
+	python3 - "$BUILDSTATUS_FILE" "$pkg" "$status" "$start" "$end" <<'PY'
+import json, os, sys
+path, pkg, status, start, end = sys.argv[1:6]
+data = []
+try:
+    with open(path) as fh:
+        data = json.load(fh)
+except Exception:
+    data = []
+data = [e for e in data if e.get("package") != pkg]
+data.append({
+    "package": pkg,
+    "status": status,
+    "start": int(start),
+    "end": int(end),
+    "seconds": int(end) - int(start),
+})
+tmp = path + ".tmp"
+with open(tmp, "w") as fh:
+    json.dump(data, fh, indent=1)
+    fh.write("\n")
+os.replace(tmp, path)
+PY
+}
+
+# List packages already built successfully, so a resumed build skips them.
+_completed_packages() {
+	python3 - "$BUILDSTATUS_FILE" <<'PY'
+import json, sys
+try:
+    with open(sys.argv[1]) as fh:
+        data = json.load(fh)
+except Exception:
+    sys.exit(0)
+for entry in data:
+    if entry.get("status") == "ok":
+        print(entry["package"])
+PY
+}
+
 exec &>	>(tee -a "$BUILDALL_DIR"/ALL.out)
 trap 'echo ERROR: See $BUILDALL_DIR/${PKG}.out' ERR
 
+COMPLETED_FILE="$BUILDALL_DIR"/completed.txt
+if [ -e "$BUILDSTATUS_FILE" ]; then
+	_completed_packages > "$COMPLETED_FILE"
+else
+	rm -f "$COMPLETED_FILE"
+fi
+
 while read -r PKG PKG_DIR; do
-	# Check build status (grepping is a bit crude, but it works)
-	if [ -e "$BUILDSTATUS_FILE" ] && grep -q "^$PKG\$" "$BUILDSTATUS_FILE"; then
+	# Check build status: skip packages that already built successfully
+	if [ -e "$COMPLETED_FILE" ] && grep -qxF "$PKG" "$COMPLETED_FILE"; then
 		echo "Skipping $PKG"
 		continue
 	fi
@@ -89,18 +141,34 @@ while read -r PKG PKG_DIR; do
 
 	echo -n "Building $PKG... "
 	BUILD_START=$(date "+%s")
-	"$BUILDSCRIPT" -a "$TERMUX_ARCH" $TERMUX_DEBUG_BUILD --format "$TERMUX_FORMAT" \
+	if "$BUILDSCRIPT" -a "$TERMUX_ARCH" $TERMUX_DEBUG_BUILD --format "$TERMUX_FORMAT" \
 		--library $(test "${PKG_DIR%/*}" = "gpkg" && echo "glibc" || echo "bionic") \
 		${TERMUX_OUTPUT_DIR+-o $TERMUX_OUTPUT_DIR} $TERMUX_INSTALL_DEPS "$PKG_DIR" \
-		&> "$BUILDALL_DIR"/"${PKG}".out
+		&> "$BUILDALL_DIR"/"${PKG}".out; then
+		BUILD_STATUS="ok"
+	else
+		BUILD_STATUS="failed"
+	fi
 	BUILD_END=$(date "+%s")
 	BUILD_SECONDS=$(( BUILD_END - BUILD_START ))
-	echo "done in $BUILD_SECONDS sec"
+	if [ "$BUILD_STATUS" = "ok" ]; then
+		echo "done in $BUILD_SECONDS sec"
+	else
+		echo "FAILED in $BUILD_SECONDS sec, see $BUILDALL_DIR/${PKG}.out"
+	fi
 
 	# Update build status
-	echo "$PKG" >> "$BUILDSTATUS_FILE"
+	_register_build_status "$PKG" "$BUILD_STATUS" "$BUILD_START" "$BUILD_END"
+	if [ "$BUILD_STATUS" = "ok" ]; then
+		echo "$PKG" >> "$COMPLETED_FILE"
+	fi
+
+	if [ "$BUILD_STATUS" = "failed" ]; then
+		echo "Build of $PKG failed; fixing the error and re-running this script will resume the remaining packages."
+		exit 1
+	fi
 done<"${BUILDORDER_FILE}"
 
 # Update build status
-rm -f "$BUILDSTATUS_FILE"
+rm -f "$BUILDSTATUS_FILE" "$COMPLETED_FILE"
 echo "Finished"

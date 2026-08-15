@@ -1,0 +1,55 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# pd-backup - full backup of the Termux home directory.
+#
+# Usage: pd-backup [DEST_DIR] [EXCLUDE_PATTERN...]
+# Default destination: ~/storage/shared/termux-backups
+#
+# Excludes caches, build dirs and session junk by default. Uses tar.zst
+# when zstd is available, otherwise plain gzip.
+
+set -euo pipefail
+
+HOME_DIR="${HOME:-/data/data/com.termux/files/home}"
+DEST_DIR="${1:-$HOME_DIR/storage/shared/termux-backups}"
+shift || true
+
+STAMP="$(date +%Y%m%d-%H%M%S)"
+BACKUP_NAME="termux-backup-$STAMP"
+
+mkdir -p "$DEST_DIR"
+
+EXCLUDES=(
+	--exclude="$HOME_DIR/storage"
+	--exclude="$HOME_DIR/.cache"
+	--exclude="$HOME_DIR/.gradle"
+	--exclude="$HOME_DIR/.m2"
+	--exclude="$HOME_DIR/go/pkg/mod"
+	--exclude="$HOME_DIR/.cargo/registry"
+	--exclude="$HOME_DIR/.npm"
+	--exclude="$HOME_DIR/.yarn"
+	--exclude="$HOME_DIR/.local/share/pip"
+	--exclude="$HOME_DIR/termux-personal/*/build"
+	--exclude="*.log"
+)
+for pattern in "$@"; do
+	EXCLUDES+=(--exclude="$pattern")
+done
+
+echo "==> Backing up $HOME_DIR to $DEST_DIR/$BACKUP_NAME ..."
+
+if command -v zstd >/dev/null 2>&1 && tar --version 2>/dev/null | grep -qi "zstd"; then
+	ARCHIVE="$DEST_DIR/$BACKUP_NAME.tar.zst"
+	tar --zstd -cf "$ARCHIVE" "${EXCLUDES[@]}" -C "$HOME_DIR" .
+	echo "==> Done: $ARCHIVE"
+else
+	ARCHIVE="$DEST_DIR/$BACKUP_NAME.tar.gz"
+	tar -czf "$ARCHIVE" "${EXCLUDES[@]}" -C "$HOME_DIR" .
+	echo "==> Done: $ARCHIVE"
+fi
+
+echo "==> Size: $(du -h "$ARCHIVE" | cut -f1)"
+echo "==> Keep the newest 5 backups:"
+ls -1t "$DEST_DIR"/termux-backup-* 2>/dev/null | tail -n +6 | while read -r old; do
+	rm -f "$old"
+	echo "    removed $old"
+done
