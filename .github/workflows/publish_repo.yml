@@ -50,12 +50,6 @@ jobs:
           gzip -9f repo/apt/termux-droidshell/Packages
           head -20 repo/apt/termux-droidshell/Packages.gz | strings | head -12
 
-      - name: Store debs as artifact (fallback)
-        uses: actions/upload-artifact@v6
-        with:
-          name: droidshell-debs
-          path: "repo/apt/termux-droidshell/*.deb"
-
       - name: Publish to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
@@ -66,3 +60,13 @@ jobs:
           user_name: 'CodeDev-404'
           user_email: 'maicolguevara96@yahoo.com'
           commit_message: 'Update DroidShell apt repo: ${{ github.event.inputs.packages }}'
+
+      - name: Store debs as artifact (fallback)
+        run: |
+          cd repo/apt/termux-droidshell
+          tar -czf /tmp/droidshell-debs.tar.gz ./*.deb Packages.gz
+      - name: Upload debs artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: droidshell-debs
+          path: /tmp/droidshell-debs.tar.gz
