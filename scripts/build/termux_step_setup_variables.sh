@@ -106,6 +106,14 @@ termux_step_setup_variables() {
 	export prefix=${TERMUX_PREFIX}
 	export PREFIX=${TERMUX_PREFIX}
 
+	# Export app identity variables so packages that read them from the
+	# environment at configure time (like termux-tools) build for the
+	# right package name and prefix instead of the default com.termux.
+	export TERMUX_APP__PACKAGE_NAME=${TERMUX_APP__PACKAGE_NAME}
+	export TERMUX_APP_PACKAGE=${TERMUX_APP_PACKAGE}
+	export TERMUX_APP_PACKAGE_NAME=${TERMUX_APP_PACKAGE_NAME}
+	export TERMUX_APP_NAME=${TERMUX_APP_NAME}
+
 	# Explicitly export in case the default was set.
 	export TERMUX_ARCH=${TERMUX_ARCH}
 
