@@ -12,7 +12,7 @@ permissions: {} # none
 jobs:
   build:
     permissions:
-      contents: read
+      contents: write
       pages: write
       id-token: write
     runs-on: ubuntu-26.04
@@ -49,6 +49,12 @@ jobs:
           fi
           gzip -9f repo/apt/termux-droidshell/Packages
           head -20 repo/apt/termux-droidshell/Packages.gz | strings | head -12
+
+      - name: Store debs as artifact (fallback)
+        uses: actions/upload-artifact@v6
+        with:
+          name: droidshell-debs
+          path: "repo/apt/termux-droidshell/*.deb"
 
       - name: Publish to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
