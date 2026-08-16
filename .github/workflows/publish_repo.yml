@@ -1,0 +1,62 @@
+name: Publish DroidShell apt repo
+
+on:
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: "Space-separated package names to build (with dependencies)"
+        required: true
+
+permissions: {} # none
+
+jobs:
+  build:
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Git clone
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Build package builder image
+        working-directory: scripts
+        run: docker build -t package-builder -f Dockerfile .
+
+      - name: Build packages from source (DroidShell prefix)
+        run: |
+          TERMUX_BUILDER_IMAGE_NAME=package-builder ./scripts/run-docker.sh \
+            ./build-package.sh -a aarch64 --format debian -I ${{ github.event.inputs.packages }}
+
+      - name: Collect debs
+        run: |
+          mkdir -p repo/apt/termux-droidshell
+          cp output/*.deb repo/apt/termux-droidshell/ 2>/dev/null || true
+          ls -la repo/apt/termux-droidshell/ | head -40
+
+      - name: Generate Packages index
+        run: |
+          docker exec termux-package-builder sh -c \
+            "cd /home/builder/termux-packages && dpkg-scanpackages --multiversion repo/apt/termux-droidshell / > repo/apt/termux-droidshell/Packages 2>/dev/null" || true
+          # Fallback: run on the host if the container helper is missing
+          if [ ! -s repo/apt/termux-droidshell/Packages ]; then
+            cd repo/apt/termux-droidshell
+            dpkg-scanpackages . / > Packages 2>/dev/null || apt-ftparchive packages . > Packages
+            cd /home/runner/work/termux-packages/termux-packages
+          fi
+          gzip -9f repo/apt/termux-droidshell/Packages
+          head -20 repo/apt/termux-droidshell/Packages.gz | strings | head -12
+
+      - name: Publish to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./repo
+          publish_branch: gh-pages
+          force_orphan: true
+          user_name: 'CodeDev-404'
+          user_email: 'maicolguevara96@yahoo.com'
+          commit_message: 'Update DroidShell apt repo: ${{ github.event.inputs.packages }}'
