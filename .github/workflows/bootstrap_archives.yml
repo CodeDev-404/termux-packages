@@ -31,11 +31,24 @@ jobs:
       - name: Create bootstrap archive (builds packages from source with the DroidShell prefix)
         run: TERMUX_BUILDER_IMAGE_NAME=package-builder ./scripts/run-docker.sh ./scripts/build-bootstraps.sh --architectures ${{ matrix.arch }}
 
+      - name: Copy bootstrap archive out of the container
+        run: |
+          # The zip is created in a tmp dir inside the container; the final
+          # mv into the mounted repo can fail with permission errors on CI
+          # runners, so copy it out with docker cp instead.
+          BOOTSTRAP_TMP=$(docker exec termux-package-builder sh -c 'ls -d /tmp/bootstrap-tmp.* 2>/dev/null | head -n 1' || true)
+          if [ -n "$BOOTSTRAP_TMP" ] && docker exec termux-package-builder test -f "$BOOTSTRAP_TMP/bootstrap-${{ matrix.arch }}.zip"; then
+            docker cp "termux-package-builder:$BOOTSTRAP_TMP/bootstrap-${{ matrix.arch }}.zip" "./bootstrap-${{ matrix.arch }}.zip"
+          else
+            cp "/home/builder/termux-packages/bootstrap-${{ matrix.arch }}.zip" "./bootstrap-${{ matrix.arch }}.zip" 2>/dev/null || \
+              { echo "::error ::bootstrap-${{ matrix.arch }}.zip not found"; exit 1; }
+          fi
+
       - name: Store artifacts
         uses: actions/upload-artifact@v6
         with:
           name: bootstrap-archives-${{ matrix.arch }}-${{ github.sha }}
-          path: "*.zip"
+          path: "bootstrap-*.zip"
 
   publish:
     permissions:
@@ -69,6 +82,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create ${{ steps.get_tag.outputs.tag_name }} --title "Bootstrap archives for DroidShell application (apt.android-7)"
-          for file in *.zip; do
+          for file in $(find . -maxdepth 3 -name "*.zip" -print); do
             gh release upload ${{ steps.get_tag.outputs.tag_name }} "$file"
           done
