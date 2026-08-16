@@ -1,15 +1,9 @@
 name: Generate DroidShell bootstrap archives (android-7)
 
 on:
-  schedule:
-    - cron: "0 0 * * 0"
   workflow_dispatch:
 
 permissions: {} # none
-
-concurrency:
-  group: ${{ github.workflow }}
-  cancel-in-progress: true
 
 jobs:
   build:
