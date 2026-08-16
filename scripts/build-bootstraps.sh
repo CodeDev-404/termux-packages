@@ -246,9 +246,15 @@ create_bootstrap_archive() {
 		zip -r9 "${BOOTSTRAP_TMPDIR}/bootstrap-${1}.zip" ./*
 	)
 
-	mv -f "${BOOTSTRAP_TMPDIR}/bootstrap-${1}.zip" "$TERMUX_PACKAGES_DIRECTORY/"
-
-	echo "[*] Finished successfully (${1})."
+	# On CI the mounted repository directory may not be writable by the
+	# builder user, so fall back to leaving the zip in the tmp dir for a
+	# later 'docker cp'. The cleanup trap keeps the tmp dir if it still
+	# holds bootstrap zips.
+	if mv -f "${BOOTSTRAP_TMPDIR}/bootstrap-${1}.zip" "$TERMUX_PACKAGES_DIRECTORY/" 2>/dev/null; then
+		echo "[*] Finished successfully (${1})."
+	else
+		echo "[*] Finished successfully (${1}), zip left in ${BOOTSTRAP_TMPDIR}/ for docker cp."
+	fi
 
 }
 
@@ -271,7 +277,13 @@ build_bootstrap_trap() {
 	trap - EXIT
 
 	[ -h "$TERMUX_BUILT_PACKAGES_DIRECTORY" ] && rm -f "$TERMUX_BUILT_PACKAGES_DIRECTORY"
-	[ -d "$BOOTSTRAP_TMPDIR" ] && rm -rf "$BOOTSTRAP_TMPDIR"
+
+	# Keep the tmp dir when it still holds bootstrap zips (the mv into the
+	# mounted repo may have failed on CI), so a later 'docker cp' can
+	# collect them. Otherwise clean up as before.
+	if [ -d "$BOOTSTRAP_TMPDIR" ] && ! find "$BOOTSTRAP_TMPDIR" -maxdepth 1 -name "bootstrap-*.zip" -print -quit | grep -q .; then
+		rm -rf "$BOOTSTRAP_TMPDIR"
+	fi
 
 	[ -n "$1" ] && trap - "$1"; exit $build_bootstrap_trap_exit_code
 
