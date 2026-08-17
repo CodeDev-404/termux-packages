@@ -2,9 +2,9 @@ TERMUX_PKG_HOMEPAGE=https://github.com/termux/proot-distro
 TERMUX_PKG_DESCRIPTION="Termux official utility for managing proot'ed Linux distributions"
 TERMUX_PKG_LICENSE="GPL-3.0"
 TERMUX_PKG_MAINTAINER="@termux"
-TERMUX_PKG_VERSION="5.6.0"
-TERMUX_PKG_SRCURL="https://github.com/termux/proot-distro/archive/refs/tags/v${TERMUX_PKG_VERSION}.tar.gz"
-TERMUX_PKG_SHA256=c11610bbaac9b24a349cabc857ccd2f878d01a5b0c041bc333b5475637878925
+TERMUX_PKG_VERSION="5.6.0-droidshell.1"
+TERMUX_PKG_SRCURL="https://github.com/CodeDev-404/proot-distro/archive/refs/heads/mejoras.tar.gz"
+TERMUX_PKG_SHA256=b7c5ed89a01cad8fcba9b4a8ed5cd19f7e8067223680b185beb6188f54a33748
 # note for regular maintainers of proot-distro: since version 5.1.5, proot-distro
 # has been detected by termux_step_create_python_debscripts as depending conditionally
 # on pytest. since termux_step_create_python_debscripts cannot fully resolve conditional
@@ -15,7 +15,7 @@ TERMUX_PKG_DEPENDS="proot (>= 5.1.107-71), python, python-pip"
 TERMUX_PKG_SUGGESTS="bash-completion, termux-api, zsh-completions"
 TERMUX_PKG_BUILD_IN_SRC=true
 TERMUX_PKG_PLATFORM_INDEPENDENT=true
-TERMUX_PKG_AUTO_UPDATE=true
+# The source is the personal DroidShell fork branch, not upstream tags.
 
 termux_step_pre_configure() {
 	termux_setup_python_pip
