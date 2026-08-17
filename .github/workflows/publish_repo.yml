@@ -31,6 +31,14 @@ jobs:
           TERMUX_BUILDER_IMAGE_NAME=package-builder ./scripts/run-docker.sh \
             ./build-package.sh -a aarch64 --format debian -I ${{ github.event.inputs.packages }}
 
+      - name: Restore existing apt repository
+        run: |
+          mkdir -p repo
+          git fetch origin gh-pages:refs/remotes/origin/gh-pages || true
+          if git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
+            git archive origin/gh-pages | tar -x -C repo
+          fi
+
       - name: Collect debs
         run: |
           mkdir -p repo/apt/termux-droidshell
@@ -56,7 +64,8 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./repo
           publish_branch: gh-pages
-          force_orphan: true
+          force_orphan: false
+          keep_files: true
           user_name: 'CodeDev-404'
           user_email: 'maicolguevara96@yahoo.com'
           commit_message: 'Update DroidShell apt repo: ${{ github.event.inputs.packages }}'
