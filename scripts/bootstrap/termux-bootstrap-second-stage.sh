@@ -149,6 +149,15 @@ run_bootstrap_second_stage_inner() {
 		return $return_value
 	fi
 
+	# Configure the repository for DroidShell installations during the
+	# bootstrap itself. This avoids requiring users to edit sources.list.
+	if [ "@TERMUX_APP__PACKAGE_NAME@" = "com.droidshell.app" ] && [ "$TERMUX_PACKAGE_MANAGER" = "apt" ]; then
+		mkdir -p "${TERMUX_PREFIX}/etc/apt" "${TERMUX_PREFIX}/etc/termux"
+		printf '%s\n' 'deb [trusted=yes] https://codedev-404.github.io/termux-packages/apt/termux-droidshell ./' > "${TERMUX_PREFIX}/etc/apt/sources.list"
+		touch "${TERMUX_PREFIX}/etc/termux/droidshell-repo"
+		log "Configured DroidShell apt repository."
+	fi
+
 	return 0
 
 }

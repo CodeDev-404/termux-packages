@@ -27,6 +27,26 @@ termux_step_pre_configure() {
 
 termux_step_post_make_install() {
 	TERMUX_PKG_CONFFILES="$(cat "$TERMUX_PKG_BUILDDIR/conffiles")"
+
+	# Keep DroidShell installs on the fork's repository. The upstream pkg
+	# script selects a Termux mirror whenever an install/update command runs,
+	# which would overwrite the custom prefix repository.
+	if [ "$TERMUX_APP_PACKAGE" = "com.droidshell.app" ]; then
+		local pkg_script="$TERMUX_PREFIX/bin/pkg"
+		local tmp_script="$TERMUX_PKG_TMPDIR/pkg.droidshell"
+		awk '
+			/^select_mirror\(\) \{/ {
+				print
+				print "\tif [ -f \"/data/data/com.droidshell.app/files/usr/etc/termux/droidshell-repo\" ]; then"
+				print "\t\techo \"deb [trusted=yes] https://codedev-404.github.io/termux-packages/apt/termux-droidshell ./\" > \"/data/data/com.droidshell.app/files/usr/etc/apt/sources.list\""
+				print "\t\treturn 0"
+				print "\tfi"
+				next
+			}
+			{ print }
+		' "$pkg_script" > "$tmp_script"
+		install -m 755 "$tmp_script" "$pkg_script"
+	fi
 }
 
 termux_step_create_debscripts() {
